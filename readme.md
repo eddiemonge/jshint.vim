@@ -7,14 +7,12 @@ v0.9.0
 
 ## Installation
 
-**[Node.js](http://nodejs.org) must be in your path.**
+**[Node.js][] must be in your path.**
 
-Recommended for use with [tpope's
-Pathogen](https://github.com/tpope/vim-pathogen) plugin runtime
+Recommended for use with [pathogen][] plugin runtime
 management system.
 
-If you're old school or not into pathogen, there a Makefile to copy
-everything into your `~/.vim` directory.
+If you're old school or not into pathogen, copy everything into your `~/.vim` directory.
 
 ## Usage
 
@@ -50,4 +48,7 @@ to a specific error, where `[nr]` is a number.  The first error in the list is
 
 Once an error is fixed the corresponding quickfix line will disappear.
 
+
+[Node.js]:  http://nodejs.org                                    "NodeJS website"
+[pathogen]: https://github.com/tpope/vim-pathogen                "tpope's excellent Pathogen plugin"
 [quickfix]: http://vimdoc.sourceforge.net/htmldoc/quickfix.html  "Vim documentation: quickfix"
