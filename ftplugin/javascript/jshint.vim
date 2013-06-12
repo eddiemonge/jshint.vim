@@ -1,106 +1,21 @@
+" Event handlers.
 
-" Global Options
-"
-" Enable/Disable highlighting of errors in source.
-" Default is Enable
-" To disable the highlighting put the line
-" let g:JSHintHighlightErrorLine = 0
-" in your .vimrc
-"
-if exists("b:did_jshint_plugin")
-  finish
-else
-  let b:did_jshint_plugin = 1
-endif
+" Clear the errors when leaving a buffer
+au BufLeave <buffer> call <SID>JSHintClear()
 
-let s:install_dir = expand('<sfile>:p:h')
+" Call JSHint when entering a buffer, leaving insert mode or when saving
+au BufEnter <buffer> call <SID>:JSHint()
+au InsertLeave <buffer> call <SID>:JSHint()
+au BufWritePost <buffer> call <SID>:JSHint()
 
-au BufLeave <buffer> call s:JSHintClear()
 
-au BufEnter <buffer> call s:JSHint()
-au InsertLeave <buffer> call s:JSHint()
-"au InsertEnter <buffer> call s:JSHint()
-au BufWritePost <buffer> call s:JSHint()
 
-" due to http://tech.groups.yahoo.com/group/vimdev/message/52115
-if(!has("win32") || v:version>702)
-  au CursorHold <buffer> call s:JSHint()
-  au CursorHoldI <buffer> call s:JSHint()
 
-  au CursorHold <buffer> call s:GetJSHintMessage()
-endif
+" Function
 
-au CursorMoved <buffer> call s:GetJSHintMessage()
-
-if !exists("g:JSHintHighlightErrorLine")
-  let g:JSHintHighlightErrorLine = 1
-endif
-
-if !exists("*s:JSHintUpdate")
-  function s:JSHintUpdate()
-    silent call s:JSHint()
-    call s:GetJSHintMessage()
-  endfunction
-endif
-
-if !exists(":JSHintUpdate")
-  command JSHintUpdate :call s:JSHintUpdate()
-endif
-if !exists(":JSHintToggle")
-  command JSHintToggle :let b:jshint_disabled = exists('b:jshint_disabled') ? b:jshint_disabled ? 0 : 1 : 1
-endif
-
-noremap <buffer><silent> dd dd:JSHintUpdate<CR>
-noremap <buffer><silent> dw dw:JSHintUpdate<CR>
-noremap <buffer><silent> u u:JSHintUpdate<CR>
-noremap <buffer><silent> <C-R> <C-R>:JSHintUpdate<CR>
-
-" Set up command and parameters
-
-let s:plugin_path = s:install_dir . "/jshint/"
-if has('win32')
-  let s:plugin_path = substitute(s:plugin_path, '/', '\', 'g')
-endif
-let s:cmd = "cd " . s:plugin_path . " && node " . s:plugin_path . "runner.js"
-
-" FindRc() will try to find a .jshintrc up the current path string
-" If it cannot find one it will try looking in the home directory
-" finally it will return an empty list indicating jshint should use
-" the defaults.
-if !exists("*s:FindRc")
-  function s:FindRc(path)
-    let l:filename = '/.jshintrc'
-    let l:jshintrc_file = expand(a:path) . l:filename
-    if filereadable(l:jshintrc_file)
-      let s:jshintrc_file = l:jshintrc_file
-    elseif len(a:path) > 1
-      call s:FindRc(fnamemodify(expand(a:path), ":h"))
-    else 
-      let l:jshintrc_file = expand('~') . l:filename
-      if filereadable(l:jshintrc_file)
-        let s:jshintrc_file = l:jshintrc_file
-      else
-        let s:jshintrc_file = ''
-      end
-    endif
-  endfun
-endif
-
-call s:FindRc(expand("%:p:h"))
-
-" WideMsg() prints [long] message up to (&columns-1) length
-" guaranteed without "Press Enter" prompt.
-if !exists("*s:WideMsg")
-  function s:WideMsg(msg)
-    let x=&ruler | let y=&showcmd
-    set noruler noshowcmd
-    redraw
-    echo a:msg
-    let &ruler=x | let &showcmd=y
-  endfun
-endif
-
+" Clear the list of errors
 function! s:JSHintClear()
+  " Only run this if jshine is not disabled
   if exists("b:jshint_disabled") && b:jshint_disabled == 1
     return
   endif
@@ -117,13 +32,18 @@ function! s:JSHintClear()
   let b:cleared = 1
 endfunction
 
+" The bulk of the plugin work
 function! s:JSHint()
+  " Only run this if jshine is not disabled
   if exists("b:jshint_disabled") && b:jshint_disabled == 1
     return
   endif
 
+  " Set the errors to highlight the same as SpellBad (:help highlight link for
+  " more info)
   highlight link JSHintError SpellBad
 
+  " Clear the previous errors
   if exists("b:cleared")
     if b:cleared == 0
       call s:JSHintClear()
@@ -131,8 +51,11 @@ function! s:JSHint()
     let b:cleared = 1
   endif
 
+  " Some variables needed for later
   let b:matched = []
   let b:matchedlines = {}
+  let b:qf_list = []
+  let b:qf_window_count = -1
 
   " Detect range
   if a:firstline == a:lastline
@@ -148,25 +71,26 @@ function! s:JSHint()
     let b:lastline = a:lastline
   endif
 
-  let b:qf_list = []
-  let b:qf_window_count = -1
-
+  " Get the file contents and make sure there is some code to check
   let lines = join(getline(b:firstline, b:lastline), "\n")
   if len(lines) == 0
     return
   endif
 
+  " Run JSHint on the code. Store the results
   let b:jshint_output = system(s:cmd . " " . s:jshintrc_file, lines . "\n")
   if v:shell_error
     echoerr 'could not invoke JSHint!'
     let b:jshint_disabled = 1
   end
 
+  " Loop through the error code
   for error in split(b:jshint_output, "\n")
     " Match {line}:{char}:{message}
     let b:parts = matchlist(error, '\v(\d+):(\d+):(.*)')
     if !empty(b:parts)
-      let l:line = b:parts[1] + (b:firstline - 1) " Get line relative to selection
+      " Get line relative to selection
+      let l:line = b:parts[1] + (b:firstline - 1) 
       let l:errorMessage = b:parts[3]
 
       " Store the error for an error under the cursor
@@ -205,66 +129,5 @@ function! s:JSHint()
   endif
   let b:cleared = 0
 endfunction
-
-let b:showing_message = 0
-
-if !exists("*s:GetJSHintMessage")
-  function s:GetJSHintMessage()
-    let s:cursorPos = getpos(".")
-
-    " Bail if RunJSHint hasn't been called yet
-    if !exists('b:matchedlines')
-      return
-    endif
-
-    if has_key(b:matchedlines, s:cursorPos[1])
-      let s:jshintMatch = get(b:matchedlines, s:cursorPos[1])
-      call s:WideMsg(s:jshintMatch['message'])
-      let b:showing_message = 1
-      return
-    endif
-
-    if b:showing_message == 1
-      echo
-      let b:showing_message = 0
-    endif
-  endfunction
-endif
-
-if !exists("*s:GetQuickFixStackCount")
-    function s:GetQuickFixStackCount()
-        let l:stack_count = 0
-        try
-            silent colder 9
-        catch /E380:/
-        endtry
-
-        try
-            for i in range(9)
-                silent cnewer
-                let l:stack_count = l:stack_count + 1
-            endfor
-        catch /E381:/
-            return l:stack_count
-        endtry
-    endfunction
-endif
-
-if !exists("*s:ActivateJSHintQuickFixWindow")
-    function s:ActivateJSHintQuickFixWindow()
-        try
-            silent colder 9 " go to the bottom of quickfix stack
-        catch /E380:/
-        endtry
-
-        if s:jshint_qf > 0
-            try
-                exe "silent cnewer " . s:jshint_qf
-            catch /E381:/
-                echoerr "Could not activate JSHint Quickfix Window."
-            endtry
-        endif
-    endfunction
-endif
 
 
