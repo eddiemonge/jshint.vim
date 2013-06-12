@@ -66,8 +66,14 @@ Once an error is fixed the corresponding quickfix line will disappear.
 ==============================================================================
 4. Global Options                                      *jshint-global-options*
 
-None for VIM.
+### Enable/Disable highlighting of errors in source.
 
+let g:JSHintHighlightErrorLine = 0
+
+Default is Enabled. To disable the highlighting put the line in your .vimrc
+
+
+### JSHint options
 To manage JSHint options, create a valid .jshintrc file. For more info on this
 file, see http://jshint.com/docs/#options.
 
