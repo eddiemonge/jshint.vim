@@ -47,6 +47,14 @@ Once an error is fixed the corresponding quickfix line will disappear.
 
 ### ~/.vimrc Options
 
+map ,jsu <Plug>JSHintVim_Check
+map ,jsc <Plug>JSHintVim_Clear
+map ,jst <Plug>JSHintVim_Toggle
+map ,jsq <Plug>JSHintVim_QuickFix
+map ,jsr <Plug>JSHintVim_ReloadConfig
+
+
+
 #### `let g:JSHintHighlightErrorLine = 0`
 Disable error highlighting
 
